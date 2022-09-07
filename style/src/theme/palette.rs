@@ -58,6 +58,7 @@ impl Palette {
     };
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Extended {
     pub background: Background,
     pub primary: Primary,
@@ -96,7 +97,7 @@ impl Extended {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Pair {
     pub color: Color,
     pub text: Color,
@@ -111,6 +112,7 @@ impl Pair {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Background {
     pub base: Pair,
     pub weak: Pair,
@@ -130,6 +132,7 @@ impl Background {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Primary {
     pub base: Pair,
     pub weak: Pair,
@@ -149,6 +152,7 @@ impl Primary {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Secondary {
     pub base: Pair,
     pub weak: Pair,
@@ -169,6 +173,7 @@ impl Secondary {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Success {
     pub base: Pair,
     pub weak: Pair,
@@ -188,6 +193,7 @@ impl Success {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Danger {
     pub base: Pair,
     pub weak: Pair,
