@@ -122,6 +122,7 @@ where
     ) {
         match event {
             WindowEvent::Resized(new_size) => {
+                dbg!(new_size);
                 let size = Size::new(new_size.width, new_size.height);
 
                 self.viewport = Viewport::with_physical_size(
@@ -202,6 +203,7 @@ where
                 Size::new(size.width, size.height),
                 window.scale_factor() * new_scale_factor,
             );
+            self.viewport_version = self.viewport_version.wrapping_add(1);
 
             self.scale_factor = new_scale_factor;
         }
