@@ -1,10 +1,17 @@
-use crate::window::Mode;
+use crate::window;
 
 use iced_futures::MaybeSend;
 use std::fmt;
 
 /// An operation to be performed on some window.
 pub enum Action<T> {
+    /// TODO(derezzedex)
+    Spawn {
+        /// TODO(derezzedex)
+        settings: window::Settings,
+    },
+    /// TODO(derezzedex)
+    Close,
     /// Resize the window.
     Resize {
         /// The new logical width of the window
@@ -13,8 +20,6 @@ pub enum Action<T> {
         height: u32,
     },
     /// Move the window.
-    ///
-    /// Unsupported on Wayland.
     Move {
         /// The new logical x location of the window
         x: i32,
@@ -22,9 +27,9 @@ pub enum Action<T> {
         y: i32,
     },
     /// Set the [`Mode`] of the window.
-    SetMode(Mode),
+    SetMode(window::Mode),
     /// Fetch the current [`Mode`] of the window.
-    FetchMode(Box<dyn FnOnce(Mode) -> T + 'static>),
+    FetchMode(Box<dyn FnOnce(window::Mode) -> T + 'static>),
 }
 
 impl<T> Action<T> {
@@ -37,6 +42,8 @@ impl<T> Action<T> {
         T: 'static,
     {
         match self {
+            Self::Spawn { settings } => Action::Spawn { settings },
+            Self::Close => Action::Close,
             Self::Resize { width, height } => Action::Resize { width, height },
             Self::Move { x, y } => Action::Move { x, y },
             Self::SetMode(mode) => Action::SetMode(mode),
@@ -48,6 +55,10 @@ impl<T> Action<T> {
 impl<T> fmt::Debug for Action<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Spawn { settings } => {
+                write!(f, "Action::Spawn {{ settings: {:?} }}", settings)
+            }
+            Self::Close => write!(f, "Action::Close"),
             Self::Resize { width, height } => write!(
                 f,
                 "Action::Resize {{ widget: {}, height: {} }}",
