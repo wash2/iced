@@ -15,6 +15,8 @@ use std::u32;
 
 pub use iced_style::container::{Appearance, StyleSheet};
 
+use super::operation::OperationOutputWrapper;
+
 /// An element decorating some content.
 ///
 /// It is normally used for alignment purposes.
@@ -170,7 +172,7 @@ where
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
-        operation: &mut dyn Operation<Message>,
+        operation: &mut dyn Operation<OperationOutputWrapper<Message>>,
     ) {
         operation.container(None, &mut |operation| {
             self.content.as_widget().operate(

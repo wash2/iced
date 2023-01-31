@@ -3,6 +3,7 @@ use iced_native::layout::{self, Layout};
 use iced_native::mouse;
 use iced_native::overlay;
 use iced_native::renderer;
+use iced_native::widget::operation::OperationOutputWrapper;
 use iced_native::widget::tree::{self, Tree};
 use iced_native::widget::{self, horizontal_space};
 use iced_native::{
@@ -147,7 +148,7 @@ where
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
-        operation: &mut dyn widget::Operation<Message>,
+        operation: &mut dyn widget::Operation<OperationOutputWrapper<Message>>,
     ) {
         let state = tree.state.downcast_mut::<State>();
         let mut content = self.content.borrow_mut();

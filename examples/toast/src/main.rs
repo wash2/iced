@@ -613,7 +613,9 @@ mod toast {
             &mut self,
             layout: Layout<'_>,
             renderer: &Renderer,
-            operation: &mut dyn iced_native::widget::Operation<Message>,
+            operation: &mut dyn iced_native::widget::Operation<
+                OperationOutputWrapper<Message>,
+            >,
         ) {
             operation.container(None, &mut |operation| {
                 self.toasts

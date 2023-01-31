@@ -46,6 +46,8 @@ use crate::{
     Vector, Widget,
 };
 
+use super::operation::OperationOutputWrapper;
+
 /// A collection of panes distributed using either vertical or horizontal splits
 /// to completely fill the space available.
 ///
@@ -295,7 +297,7 @@ where
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
-        operation: &mut dyn widget::Operation<Message>,
+        operation: &mut dyn widget::Operation<OperationOutputWrapper<Message>>,
     ) {
         operation.container(None, &mut |operation| {
             self.contents

@@ -3,6 +3,9 @@
 mod profiler;
 mod state;
 
+use iced_native::widget::operation::focusable::focus;
+use iced_native::widget::operation::OperationWrapper;
+use iced_native::widget::Operation;
 pub use state::State;
 
 use crate::clipboard::{self, Clipboard};
@@ -39,15 +42,17 @@ pub enum UserEventWrapper<Message> {
     Message(Message),
     #[cfg(feature = "a11y")]
     /// A11y Action Request
-    A11y(iced_accessibility::accesskit::ActionRequest),
+    A11y(iced_accessibility::accesskit_winit::ActionRequestEvent),
+    /// A11y was enabled
+    A11yEnabled,
 }
 
 #[cfg(feature = "a11y")]
-impl<Message> From<iced_accessibility::accesskit::ActionRequest>
+impl<Message> From<iced_accessibility::accesskit_winit::ActionRequestEvent>
     for UserEventWrapper<Message>
 {
     fn from(
-        action_request: iced_accessibility::accesskit::ActionRequest,
+        action_request: iced_accessibility::accesskit_winit::ActionRequestEvent,
     ) -> Self {
         UserEventWrapper::A11y(action_request)
     }
@@ -347,7 +352,45 @@ async fn run_instance<A, E, C>(
     let mut mouse_interaction = mouse::Interaction::default();
     let mut events = Vec::new();
     let mut messages = Vec::new();
+    let mut commands: Vec<Command<A::Message>> = Vec::new();
     let mut redraw_pending = false;
+
+    #[cfg(feature = "a11y")]
+    let mut a11y_enabled = false;
+    #[cfg(feature = "a11y")]
+    let (window_a11y_id, adapter) = {
+        let node_id = iced_native::widget::id::window_node_id();
+
+        use iced_accessibility::accesskit::{
+            Node, NodeId, Role, Tree, TreeUpdate,
+        };
+        use iced_accessibility::accesskit_winit::Adapter;
+        let title = state.title().to_string();
+        let proxy_clone = proxy.clone();
+        (
+            node_id,
+            Adapter::new(
+                &window,
+                move || {
+                    let _ =
+                        proxy_clone.send_event(UserEventWrapper::A11yEnabled);
+                    TreeUpdate {
+                        nodes: vec![(
+                            NodeId(node_id),
+                            std::sync::Arc::new(Node {
+                                role: Role::Window,
+                                name: Some(title.into_boxed_str()),
+                                ..Default::default()
+                            }),
+                        )],
+                        tree: Some(Tree::new(NodeId(node_id))),
+                        focus: None,
+                    }
+                },
+                proxy.clone(),
+            ),
+        )
+    };
 
     debug.startup_finished();
 
@@ -383,6 +426,7 @@ async fn run_instance<A, E, C>(
                 }
 
                 if !messages.is_empty()
+                    || !commands.is_empty()
                     || matches!(
                         interface_state,
                         user_interface::State::Outdated
@@ -403,6 +447,7 @@ async fn run_instance<A, E, C>(
                         &mut proxy,
                         &mut debug,
                         &mut messages,
+                        &mut commands,
                         &window,
                         || compositor.fetch_information(),
                     );
@@ -493,7 +538,21 @@ async fn run_instance<A, E, C>(
             event::Event::UserEvent(message) => {
                 match message {
                     UserEventWrapper::Message(m) => messages.push(m),
-                    UserEventWrapper::A11y(_) => todo!(),
+                    UserEventWrapper::A11y(request) => {
+                        match request.request.action {
+                            iced_accessibility::accesskit::Action::Focus => {
+                                commands.push(Command::widget(focus(
+                                    iced_native::widget::Id::from(u128::from(
+                                        request.request.target.0,
+                                    )
+                                        as u64),
+                                )));
+                            }
+                            _ => {}
+                        }
+                        events.push(conversion::a11y(request.request));
+                    }
+                    UserEventWrapper::A11yEnabled => a11y_enabled = true,
                 };
             }
             event::Event::RedrawRequested(_) => {
@@ -504,6 +563,72 @@ async fn run_instance<A, E, C>(
 
                 if physical_size.width == 0 || physical_size.height == 0 {
                     continue;
+                }
+
+                #[cfg(feature = "a11y")]
+                if a11y_enabled {
+                    use iced_accessibility::{
+                        accesskit::{Node, NodeId, Role, Tree, TreeUpdate},
+                        A11yId, A11yNode, A11yTree,
+                    };
+                    // TODO send a11y tree
+                    let child_tree = user_interface.a11y_nodes();
+                    let root = Node {
+                        role: Role::Window,
+                        name: Some(state.title().to_string().into_boxed_str()),
+                        ..Default::default()
+                    };
+                    let window_tree = A11yTree::node_with_child_tree(
+                        A11yNode::new(root, window_a11y_id),
+                        child_tree,
+                    );
+                    let tree = Tree::new(NodeId(window_a11y_id));
+                    let mut current_operation =
+                        Some(Box::new(OperationWrapper::Id(Box::new(
+                            operation::focusable::find_focused(),
+                        ))));
+                    let mut focus = None;
+                    while let Some(mut operation) = current_operation.take() {
+                        user_interface.operate(&renderer, operation.as_mut());
+
+                        match operation.finish() {
+                            operation::Outcome::None => {}
+                            operation::Outcome::Some(message) => match message {
+                                operation::OperationOutputWrapper::Message(
+                                    _,
+                                ) => {
+                                    unimplemented!();
+                                }
+                                operation::OperationOutputWrapper::Id(id) => {
+                                    focus = Some(A11yId::from(id));
+                                }
+                            },
+                            operation::Outcome::Chain(next) => {
+                                current_operation = Some(Box::new(
+                                    OperationWrapper::Wrapper(next),
+                                ));
+                            }
+                        }
+                    }
+                    log::debug!(
+                        "focus: {:?}\ntree root: {:?}\n children: {:?}",
+                        &focus,
+                        window_tree
+                            .root()
+                            .iter()
+                            .map(|n| (n.node().role, n.id()))
+                            .collect::<Vec<_>>(),
+                        window_tree
+                            .children()
+                            .iter()
+                            .map(|n| (n.node().role, n.id()))
+                            .collect::<Vec<_>>()
+                    );
+                    adapter.update(TreeUpdate {
+                        nodes: window_tree.into(),
+                        tree: Some(tree),
+                        focus: focus.map(|id| id.into()),
+                    });
                 }
 
                 debug.render_started();
@@ -638,6 +763,10 @@ pub fn build_user_interface<'a, A: Application>(
 where
     <A::Renderer as crate::Renderer>::Theme: StyleSheet,
 {
+    // XXX Ashley: for multi-window this should be moved to build_user_interfaces
+    #[cfg(feature = "a11y")]
+    iced_native::widget::id::Id::reset();
+
     #[cfg(feature = "trace")]
     let view_span = info_span!("Application", "VIEW").entered();
 
@@ -688,11 +817,31 @@ pub fn update<A: Application, E: Executor>(
     proxy: &mut winit::event_loop::EventLoopProxy<UserEventWrapper<A::Message>>,
     debug: &mut Debug,
     messages: &mut Vec<A::Message>,
+    commands: &mut Vec<Command<A::Message>>,
     window: &winit::window::Window,
     graphics_info: impl FnOnce() -> compositor::Information + Copy,
 ) where
     <A::Renderer as crate::Renderer>::Theme: StyleSheet,
 {
+    for command in commands.drain(..) {
+        debug.update_started();
+        run_command(
+            application,
+            cache,
+            state,
+            renderer,
+            command,
+            runtime,
+            clipboard,
+            should_exit,
+            proxy,
+            debug,
+            window,
+            graphics_info,
+        );
+        debug.update_finished();
+    }
+
     for message in messages.drain(..) {
         #[cfg(feature = "trace")]
         let update_span = info_span!("Application", "UPDATE").entered();
@@ -848,7 +997,9 @@ pub fn run_command<A, E>(
             },
             command::Action::Widget(action) => {
                 let mut current_cache = std::mem::take(cache);
-                let mut current_operation = Some(action.into_operation());
+                let mut current_operation = Some(Box::new(
+                    OperationWrapper::Message(action.into_operation()),
+                ));
 
                 let mut user_interface = build_user_interface(
                     application,
@@ -864,12 +1015,24 @@ pub fn run_command<A, E>(
                     match operation.finish() {
                         operation::Outcome::None => {}
                         operation::Outcome::Some(message) => {
-                            proxy
-                                .send_event(UserEventWrapper::Message(message))
-                                .expect("Send message to event loop");
+                            match message {
+                                operation::OperationOutputWrapper::Message(
+                                    m,
+                                ) => {
+                                    proxy
+                                        .send_event(UserEventWrapper::Message(
+                                            m,
+                                        ))
+                                        .expect("Send message to event loop");
+                                }
+                                operation::OperationOutputWrapper::Id(_) => {
+                                    // TODO ASHLEY should not ever happen, should this panic!()?
+                                }
+                            }
                         }
                         operation::Outcome::Chain(next) => {
-                            current_operation = Some(next);
+                            current_operation =
+                                Some(Box::new(OperationWrapper::Wrapper(next)));
                         }
                     }
                 }

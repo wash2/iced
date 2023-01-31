@@ -10,6 +10,8 @@ use crate::{
     Widget,
 };
 
+use super::operation::OperationOutputWrapper;
+
 /// A container that distributes its contents horizontally.
 #[allow(missing_debug_implementations)]
 pub struct Row<'a, Message, Renderer> {
@@ -135,7 +137,7 @@ where
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
-        operation: &mut dyn Operation<Message>,
+        operation: &mut dyn Operation<OperationOutputWrapper<Message>>,
     ) {
         operation.container(None, &mut |operation| {
             self.children

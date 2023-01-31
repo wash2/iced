@@ -17,6 +17,8 @@ use crate::{
 pub use iced_style::scrollable::StyleSheet;
 pub use operation::scrollable::RelativeOffset;
 
+use super::operation::OperationOutputWrapper;
+
 pub mod style {
     //! The styles of a [`Scrollable`].
     //!
@@ -202,7 +204,7 @@ where
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
-        operation: &mut dyn Operation<Message>,
+        operation: &mut dyn Operation<OperationOutputWrapper<Message>>,
     ) {
         let state = tree.state.downcast_mut::<State>();
 

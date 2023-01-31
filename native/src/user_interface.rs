@@ -5,6 +5,7 @@ use crate::layout;
 use crate::mouse;
 use crate::renderer;
 use crate::widget;
+use crate::widget::operation::OperationOutputWrapper;
 use crate::window;
 use crate::{
     Clipboard, Element, Layout, Point, Rectangle, Shell, Size, Vector,
@@ -530,7 +531,7 @@ where
     pub fn operate(
         &mut self,
         renderer: &Renderer,
-        operation: &mut dyn widget::Operation<Message>,
+        operation: &mut dyn widget::Operation<OperationOutputWrapper<Message>>,
     ) {
         self.root.as_widget().operate(
             &mut self.state,

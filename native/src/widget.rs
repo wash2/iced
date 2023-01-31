@@ -95,6 +95,8 @@ use crate::overlay;
 use crate::renderer;
 use crate::{Clipboard, Layout, Length, Point, Rectangle, Shell};
 
+use self::operation::OperationOutputWrapper;
+
 /// A component that displays information and allows interaction.
 ///
 /// If you want to build your own widgets, you will need to implement this
@@ -185,7 +187,7 @@ where
         _state: &mut Tree,
         _layout: Layout<'_>,
         _renderer: &Renderer,
-        _operation: &mut dyn Operation<Message>,
+        _operation: &mut dyn Operation<OperationOutputWrapper<Message>>,
     ) {
     }
 

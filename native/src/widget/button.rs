@@ -19,6 +19,8 @@ use crate::{
 use iced_core::id::Id;
 pub use iced_style::button::{Appearance, StyleSheet};
 
+use super::operation::OperationOutputWrapper;
+
 /// A generic widget that produces a message when pressed.
 ///
 /// ```
@@ -179,7 +181,7 @@ where
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
-        operation: &mut dyn Operation<Message>,
+        operation: &mut dyn Operation<OperationOutputWrapper<Message>>,
     ) {
         operation.container(None, &mut |operation| {
             self.content.as_widget().operate(

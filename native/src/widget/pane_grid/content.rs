@@ -4,6 +4,7 @@ use crate::mouse;
 use crate::overlay;
 use crate::renderer;
 use crate::widget::container;
+use crate::widget::operation::OperationOutputWrapper;
 use crate::widget::pane_grid::{Draggable, TitleBar};
 use crate::widget::{self, Tree};
 use crate::{Clipboard, Element, Layout, Point, Rectangle, Shell, Size};
@@ -188,7 +189,7 @@ where
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
-        operation: &mut dyn widget::Operation<Message>,
+        operation: &mut dyn widget::Operation<OperationOutputWrapper<Message>>,
     ) {
         let body_layout = if let Some(title_bar) = &self.title_bar {
             let mut children = layout.children();

@@ -326,7 +326,9 @@ mod modal {
             state: &mut Tree,
             layout: Layout<'_>,
             renderer: &Renderer,
-            operation: &mut dyn widget::Operation<Message>,
+            operation: &mut dyn widget::Operation<
+                OperationOutputWrapper<Message>,
+            >,
         ) {
             self.base.as_widget().operate(
                 &mut state.children[0],
@@ -439,7 +441,9 @@ mod modal {
             &mut self,
             layout: Layout<'_>,
             renderer: &Renderer,
-            operation: &mut dyn widget::Operation<Message>,
+            operation: &mut dyn widget::Operation<
+                OperationOutputWrapper<Message>,
+            >,
         ) {
             self.content.as_widget().operate(
                 self.tree,

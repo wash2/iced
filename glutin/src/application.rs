@@ -264,8 +264,45 @@ async fn run_instance<A, E, C>(
     let mut mouse_interaction = mouse::Interaction::default();
     let mut events = Vec::new();
     let mut messages = Vec::new();
+    let mut commands = Vec::new();
     let mut redraw_pending = false;
 
+    #[cfg(feature = "a11y")]
+    let mut a11y_enabled = false;
+    #[cfg(feature = "a11y")]
+    let (window_a11y_id, mut adapter) = {
+        let node_id = iced_native::widget::id::window_node_id();
+
+        use iced_accessibility::accesskit::{
+            Node, NodeId, Role, Tree, TreeUpdate,
+        };
+        use iced_accessibility::accesskit_winit::Adapter;
+        let title = state.title().to_string();
+        let proxy_clone = proxy.clone();
+        (
+            node_id,
+            Adapter::new(
+                &window,
+                move || {
+                    let _ =
+                        proxy_clone.send_event(UserEventWrapper::A11yEnabled);
+                    TreeUpdate {
+                        nodes: vec![(
+                            NodeId(node_id),
+                            std::sync::Arc::new(Node {
+                                role: Role::Window,
+                                name: Some(title.into_boxed_str()),
+                                ..Default::default()
+                            }),
+                        )],
+                        tree: Some(Tree::new(NodeId(node_id))),
+                        focus: None,
+                    }
+                },
+                proxy.clone(),
+            ),
+        )
+    };
     debug.startup_finished();
 
     while let Some(event) = event_receiver.next().await {
@@ -320,6 +357,7 @@ async fn run_instance<A, E, C>(
                         &mut proxy,
                         &mut debug,
                         &mut messages,
+                        &mut commands,
                         context.window(),
                         || compositor.fetch_information(),
                     );
@@ -413,6 +451,7 @@ async fn run_instance<A, E, C>(
                         messages.push(message)
                     }
                     UserEventWrapper::A11y(_) => todo!(),
+                    UserEventWrapper::A11yEnabled => todo!(),
                 };
             }
             event::Event::RedrawRequested(_) => {
@@ -431,6 +470,75 @@ async fn run_instance<A, E, C>(
                 }
 
                 let current_viewport_version = state.viewport_version();
+
+                #[cfg(feature = "a11y")]
+                if a11y_enabled {
+                    use iced_accessibility::{
+                        accesskit::{Node, NodeId, Role, Tree, TreeUpdate},
+                        A11yId, A11yNode, A11yTree,
+                    };
+                    use iced_native::operation::{
+                        OperationOutputWrapper, OperationWrapper,
+                    };
+                    // TODO send a11y tree
+                    let child_tree = user_interface.a11y_nodes();
+                    let root = Node {
+                        role: Role::Window,
+                        name: Some(state.title().to_string().into_boxed_str()),
+                        ..Default::default()
+                    };
+                    let window_tree = A11yTree::node_with_child_tree(
+                        A11yNode::new(root, window_a11y_id),
+                        child_tree,
+                    );
+                    let tree = Tree::new(NodeId(window_a11y_id));
+                    let mut current_operation =
+                        Some(Box::new(OperationWrapper::Id(Box::new(
+                            operation::focusable::find_focused(),
+                        ))));
+                    let mut focus = None;
+                    while let Some(mut operation) = current_operation.take() {
+                        user_interface.operate(&renderer, operation.as_mut());
+
+                        match operation.finish() {
+                            operation::Outcome::None => {}
+                            operation::Outcome::Some(message) => match message {
+                                operation::OperationOutputWrapper::Message(
+                                    _,
+                                ) => {
+                                    unimplemented!();
+                                }
+                                operation::OperationOutputWrapper::Id(id) => {
+                                    focus = Some(A11yId::from(id));
+                                }
+                            },
+                            operation::Outcome::Chain(next) => {
+                                current_operation = Some(Box::new(
+                                    OperationWrapper::Wrapper(next),
+                                ));
+                            }
+                        }
+                    }
+                    log::debug!(
+                        "focus: {:?}\ntree root: {:?}\n children: {:?}",
+                        &focus,
+                        window_tree
+                            .root()
+                            .iter()
+                            .map(|n| (n.node().role, n.id()))
+                            .collect::<Vec<_>>(),
+                        window_tree
+                            .children()
+                            .iter()
+                            .map(|n| (n.node().role, n.id()))
+                            .collect::<Vec<_>>()
+                    );
+                    adapter.update(TreeUpdate {
+                        nodes: window_tree.into(),
+                        tree: Some(tree),
+                        focus: focus.map(|id| id.into()),
+                    });
+                }
 
                 if viewport_version != current_viewport_version {
                     let physical_size = state.physical_size();

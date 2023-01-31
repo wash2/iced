@@ -13,6 +13,7 @@ use crate::layout;
 use crate::mouse;
 use crate::renderer;
 use crate::widget;
+use crate::widget::operation::OperationOutputWrapper;
 use crate::widget::Tree;
 use crate::{Clipboard, Layout, Point, Rectangle, Shell, Size};
 
@@ -49,7 +50,7 @@ where
         &mut self,
         _layout: Layout<'_>,
         _renderer: &Renderer,
-        _operation: &mut dyn widget::Operation<Message>,
+        _operation: &mut dyn widget::Operation<OperationOutputWrapper<Message>>,
     ) {
     }
 

@@ -5,9 +5,8 @@ use crate::layout;
 use crate::mouse;
 use crate::renderer;
 use crate::widget;
+use crate::widget::operation::{MapOperation, OperationOutputWrapper};
 use crate::{Clipboard, Layout, Point, Rectangle, Shell, Size, Vector};
-
-use std::any::Any;
 
 /// A generic [`Overlay`].
 #[allow(missing_debug_implementations)]
@@ -117,7 +116,7 @@ where
         &mut self,
         layout: Layout<'_>,
         renderer: &Renderer,
-        operation: &mut dyn widget::Operation<Message>,
+        operation: &mut dyn widget::Operation<OperationOutputWrapper<Message>>,
     ) {
         self.overlay.operate(layout, renderer, operation);
     }
@@ -159,54 +158,8 @@ where
         &mut self,
         layout: Layout<'_>,
         renderer: &Renderer,
-        operation: &mut dyn widget::Operation<B>,
+        operation: &mut dyn widget::Operation<OperationOutputWrapper<B>>,
     ) {
-        struct MapOperation<'a, B> {
-            operation: &'a mut dyn widget::Operation<B>,
-        }
-
-        impl<'a, T, B> widget::Operation<T> for MapOperation<'a, B> {
-            fn container(
-                &mut self,
-                id: Option<&widget::Id>,
-                operate_on_children: &mut dyn FnMut(
-                    &mut dyn widget::Operation<T>,
-                ),
-            ) {
-                self.operation.container(id, &mut |operation| {
-                    operate_on_children(&mut MapOperation { operation });
-                });
-            }
-
-            fn focusable(
-                &mut self,
-                state: &mut dyn widget::operation::Focusable,
-                id: Option<&widget::Id>,
-            ) {
-                self.operation.focusable(state, id);
-            }
-
-            fn scrollable(
-                &mut self,
-                state: &mut dyn widget::operation::Scrollable,
-                id: Option<&widget::Id>,
-            ) {
-                self.operation.scrollable(state, id);
-            }
-
-            fn text_input(
-                &mut self,
-                state: &mut dyn widget::operation::TextInput,
-                id: Option<&widget::Id>,
-            ) {
-                self.operation.text_input(state, id)
-            }
-
-            fn custom(&mut self, state: &mut dyn Any, id: Option<&widget::Id>) {
-                self.operation.custom(state, id);
-            }
-        }
-
         self.content
             .operate(layout, renderer, &mut MapOperation { operation });
     }
