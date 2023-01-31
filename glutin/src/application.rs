@@ -6,7 +6,7 @@ pub use iced_winit::application::StyleSheet;
 pub use iced_winit::Application;
 
 use iced_graphics::window;
-use iced_winit::application;
+use iced_winit::application::{self, subscription_map, UserEventWrapper};
 use iced_winit::conversion;
 use iced_winit::futures;
 use iced_winit::futures::channel::mpsc;
@@ -206,11 +206,15 @@ async fn run_instance<A, E, C>(
     mut application: A,
     mut compositor: C,
     mut renderer: A::Renderer,
-    mut runtime: Runtime<E, Proxy<A::Message>, A::Message>,
-    mut proxy: glutin::event_loop::EventLoopProxy<A::Message>,
+    mut runtime: Runtime<
+        E,
+        Proxy<UserEventWrapper<A::Message>>,
+        UserEventWrapper<A::Message>,
+    >,
+    mut proxy: glutin::event_loop::EventLoopProxy<UserEventWrapper<A::Message>>,
     mut debug: Debug,
     mut event_receiver: mpsc::UnboundedReceiver<
-        glutin::event::Event<'_, A::Message>,
+        glutin::event::Event<'_, UserEventWrapper<A::Message>>,
     >,
     mut control_sender: mpsc::UnboundedSender<glutin::event_loop::ControlFlow>,
     mut context: glutin::ContextWrapper<glutin::PossiblyCurrent, Window>,
@@ -246,7 +250,7 @@ async fn run_instance<A, E, C>(
         context.window(),
         || compositor.fetch_information(),
     );
-    runtime.track(application.subscription());
+    runtime.track(application.subscription().map(subscription_map::<A, E>));
 
     let mut user_interface =
         ManuallyDrop::new(application::build_user_interface(
@@ -404,7 +408,12 @@ async fn run_instance<A, E, C>(
                 ));
             }
             event::Event::UserEvent(message) => {
-                messages.push(message);
+                match message {
+                    UserEventWrapper::Message(message) => {
+                        messages.push(message)
+                    }
+                    UserEventWrapper::A11y(_) => todo!(),
+                };
             }
             event::Event::RedrawRequested(_) => {
                 #[cfg(feature = "tracing")]

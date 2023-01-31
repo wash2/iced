@@ -15,8 +15,8 @@ use crate::{
     Subscription,
 };
 
-use iced_futures::futures;
 use iced_futures::futures::channel::mpsc;
+use iced_futures::futures::{self, FutureExt};
 use iced_graphics::compositor;
 use iced_graphics::window;
 use iced_native::program::Program;
@@ -31,6 +31,27 @@ use std::mem::ManuallyDrop;
 pub use profiler::Profiler;
 #[cfg(feature = "trace")]
 use tracing::{info_span, instrument::Instrument};
+
+#[derive(Debug)]
+/// Wrapper aroun application Messages to allow for more UserEvent variants
+pub enum UserEventWrapper<Message> {
+    /// Application Message
+    Message(Message),
+    #[cfg(feature = "a11y")]
+    /// A11y Action Request
+    A11y(iced_accessibility::accesskit::ActionRequest),
+}
+
+#[cfg(feature = "a11y")]
+impl<Message> From<iced_accessibility::accesskit::ActionRequest>
+    for UserEventWrapper<Message>
+{
+    fn from(
+        action_request: iced_accessibility::accesskit::ActionRequest,
+    ) -> Self {
+        UserEventWrapper::A11y(action_request)
+    }
+}
 
 /// An interactive, native cross-platform application.
 ///
@@ -259,11 +280,15 @@ async fn run_instance<A, E, C>(
     mut application: A,
     mut compositor: C,
     mut renderer: A::Renderer,
-    mut runtime: Runtime<E, Proxy<A::Message>, A::Message>,
-    mut proxy: winit::event_loop::EventLoopProxy<A::Message>,
+    mut runtime: Runtime<
+        E,
+        Proxy<UserEventWrapper<A::Message>>,
+        UserEventWrapper<A::Message>,
+    >,
+    mut proxy: winit::event_loop::EventLoopProxy<UserEventWrapper<A::Message>>,
     mut debug: Debug,
     mut event_receiver: mpsc::UnboundedReceiver<
-        winit::event::Event<'_, A::Message>,
+        winit::event::Event<'_, UserEventWrapper<A::Message>>,
     >,
     mut control_sender: mpsc::UnboundedSender<winit::event_loop::ControlFlow>,
     init_command: Command<A::Message>,
@@ -309,7 +334,7 @@ async fn run_instance<A, E, C>(
         &window,
         || compositor.fetch_information(),
     );
-    runtime.track(application.subscription());
+    runtime.track(application.subscription().map(subscription_map::<A, E>));
 
     let mut user_interface = ManuallyDrop::new(build_user_interface(
         &application,
@@ -466,7 +491,10 @@ async fn run_instance<A, E, C>(
                 ));
             }
             event::Event::UserEvent(message) => {
-                messages.push(message);
+                match message {
+                    UserEventWrapper::Message(m) => messages.push(m),
+                    UserEventWrapper::A11y(_) => todo!(),
+                };
             }
             event::Event::RedrawRequested(_) => {
                 #[cfg(feature = "trace")]
@@ -633,6 +661,16 @@ where
     user_interface
 }
 
+/// subscription mapper helper
+pub fn subscription_map<A, E>(e: A::Message) -> UserEventWrapper<A::Message>
+where
+    A: Application,
+    E: Executor,
+    <A::Renderer as iced_native::Renderer>::Theme: StyleSheet,
+{
+    UserEventWrapper::Message(e)
+}
+
 /// Updates an [`Application`] by feeding it the provided messages, spawning any
 /// resulting [`Command`], and tracking its [`Subscription`].
 pub fn update<A: Application, E: Executor>(
@@ -640,10 +678,14 @@ pub fn update<A: Application, E: Executor>(
     cache: &mut user_interface::Cache,
     state: &State<A>,
     renderer: &mut A::Renderer,
-    runtime: &mut Runtime<E, Proxy<A::Message>, A::Message>,
+    runtime: &mut Runtime<
+        E,
+        Proxy<UserEventWrapper<A::Message>>,
+        UserEventWrapper<A::Message>,
+    >,
     clipboard: &mut Clipboard,
     should_exit: &mut bool,
-    proxy: &mut winit::event_loop::EventLoopProxy<A::Message>,
+    proxy: &mut winit::event_loop::EventLoopProxy<UserEventWrapper<A::Message>>,
     debug: &mut Debug,
     messages: &mut Vec<A::Message>,
     window: &winit::window::Window,
@@ -680,8 +722,7 @@ pub fn update<A: Application, E: Executor>(
         );
     }
 
-    let subscription = application.subscription();
-    runtime.track(subscription);
+    runtime.track(application.subscription().map(subscription_map::<A, E>));
 }
 
 /// Runs the actions of a [`Command`].
@@ -691,10 +732,14 @@ pub fn run_command<A, E>(
     state: &State<A>,
     renderer: &mut A::Renderer,
     command: Command<A::Message>,
-    runtime: &mut Runtime<E, Proxy<A::Message>, A::Message>,
+    runtime: &mut Runtime<
+        E,
+        Proxy<UserEventWrapper<A::Message>>,
+        UserEventWrapper<A::Message>,
+    >,
     clipboard: &mut Clipboard,
     should_exit: &mut bool,
-    proxy: &mut winit::event_loop::EventLoopProxy<A::Message>,
+    proxy: &mut winit::event_loop::EventLoopProxy<UserEventWrapper<A::Message>>,
     debug: &mut Debug,
     window: &winit::window::Window,
     _graphics_info: impl FnOnce() -> compositor::Information + Copy,
@@ -710,14 +755,16 @@ pub fn run_command<A, E>(
     for action in command.actions() {
         match action {
             command::Action::Future(future) => {
-                runtime.spawn(future);
+                runtime.spawn(Box::pin(
+                    future.map(|e| UserEventWrapper::Message(e)),
+                ));
             }
             command::Action::Clipboard(action) => match action {
                 clipboard::Action::Read(tag) => {
                     let message = tag(clipboard.read());
 
                     proxy
-                        .send_event(message)
+                        .send_event(UserEventWrapper::Message(message))
                         .expect("Send message to event loop");
                 }
                 clipboard::Action::Write(contents) => {
@@ -764,7 +811,7 @@ pub fn run_command<A, E>(
                     };
 
                     proxy
-                        .send_event(tag(mode))
+                        .send_event(UserEventWrapper::Message(tag(mode)))
                         .expect("Send message to event loop");
                 }
                 window::Action::ToggleMaximize => {
@@ -793,7 +840,7 @@ pub fn run_command<A, E>(
                             let message = _tag(information);
 
                             proxy
-                                .send_event(message)
+                                .send_event(UserEventWrapper::Message(message))
                                 .expect("Send message to event loop")
                         });
                     }
@@ -818,7 +865,7 @@ pub fn run_command<A, E>(
                         operation::Outcome::None => {}
                         operation::Outcome::Some(message) => {
                             proxy
-                                .send_event(message)
+                                .send_event(UserEventWrapper::Message(message))
                                 .expect("Send message to event loop");
                         }
                         operation::Outcome::Chain(next) => {
