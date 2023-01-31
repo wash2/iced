@@ -101,3 +101,7 @@ incremental = false
 opt-level = 3
 overflow-checks = false
 strip = "debuginfo"
+
+# TODO iced-rs/accesskit fork?
+[patch.crates-io]
+winit = { git = "https://github.com/iced-rs/winit.git", rev = "940457522e9fb9f5dac228b0ecfafe0138b4048c" }

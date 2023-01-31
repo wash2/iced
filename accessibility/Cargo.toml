@@ -10,6 +10,9 @@ edition = "2021"
 accesskit = { version = "0.8.1" }
 enumset = { version = "1.0" }
 accesskit_unix = { version = "0.1.1", optional = true }
+accesskit_windows = {version = "0.10.4", optional = true}
+accesskit_macos = {version = "0.4.2", optional = true}
+accesskit_winit = {version = "0.8.1", optional = true}
 
 [dependencies.iced_core]
 version = "0.7"
