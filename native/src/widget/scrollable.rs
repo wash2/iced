@@ -353,7 +353,7 @@ where
 }
 
 /// The identifier of a [`Scrollable`].
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Id(widget::Id);
 
 impl Id {

@@ -250,6 +250,18 @@ where
     ) -> Option<overlay::Element<'b, Message, Renderer>> {
         overlay::from_children(&mut self.children, tree, layout, renderer)
     }
+
+    #[cfg(feature = "a11y")]
+    /// get the a11y nodes for the widget
+    fn a11y_nodes(&self, layout: Layout<'_>) -> iced_accessibility::A11yTree {
+        use iced_accessibility::A11yTree;
+        A11yTree::join(
+            self.children
+                .iter()
+                .zip(layout.children())
+                .map(|(c, c_layout)| c.as_widget().a11y_nodes(c_layout)),
+        )
+    }
 }
 
 impl<'a, Message, Renderer> From<Column<'a, Message, Renderer>>

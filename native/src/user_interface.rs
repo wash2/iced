@@ -345,6 +345,12 @@ where
         )
     }
 
+    /// get a11y nodes
+    #[cfg(feature = "a11y")]
+    pub fn a11y_nodes(&self) -> iced_accessibility::A11yTree {
+        self.root.as_widget().a11y_nodes(Layout::new(&self.base))
+    }
+
     /// Draws the [`UserInterface`] with the provided [`Renderer`].
     ///
     /// It returns the current [`mouse::Interaction`]. You should update the

@@ -25,6 +25,7 @@
 #![forbid(unsafe_code, rust_2018_idioms)]
 #![allow(clippy::inherent_to_string, clippy::type_complexity)]
 pub mod alignment;
+pub mod id;
 pub mod keyboard;
 pub mod mouse;
 pub mod time;

@@ -1,6 +1,8 @@
 //! Allow your users to perform actions by pressing a button.
 //!
 //! A [`Button`] has some local [`State`].
+use std::borrow::Cow;
+
 use crate::event::{self, Event};
 use crate::layout;
 use crate::mouse;
@@ -14,6 +16,7 @@ use crate::{
     Rectangle, Shell, Vector, Widget,
 };
 
+use iced_core::id::Id;
 pub use iced_style::button::{Appearance, StyleSheet};
 
 /// A generic widget that produces a message when pressed.
@@ -56,6 +59,9 @@ where
     Renderer: crate::Renderer,
     Renderer::Theme: StyleSheet,
 {
+    id: Id,
+    name: Option<Cow<'a, str>>,
+    description: Option<Cow<'a, str>>,
     content: Element<'a, Message, Renderer>,
     on_press: Option<Message>,
     width: Length,
@@ -72,6 +78,9 @@ where
     /// Creates a new [`Button`] with the given content.
     pub fn new(content: impl Into<Element<'a, Message, Renderer>>) -> Self {
         Button {
+            id: Id::unique(),
+            name: None,
+            description: None,
             content: content.into(),
             on_press: None,
             width: Length::Shrink,
@@ -205,6 +214,7 @@ where
         }
 
         update(
+            &self.id,
             event,
             layout,
             cursor_position,
@@ -273,6 +283,49 @@ where
             renderer,
         )
     }
+
+    #[cfg(feature = "a11y")]
+    /// get the a11y nodes for the widget
+    fn a11y_nodes(&self, layout: Layout<'_>) -> iced_accessibility::A11yTree {
+        use enumset::enum_set;
+        use iced_accessibility::{
+            accesskit::{kurbo::Rect, Action, DefaultActionVerb, Node, Role},
+            A11yNode, A11yTree,
+        };
+
+        let child_layout = layout.children().next().unwrap();
+        let child_tree = self.content.as_widget().a11y_nodes(child_layout);
+
+        let Rectangle {
+            x,
+            y,
+            width,
+            height,
+        } = layout.bounds();
+        let bounds = Some(Rect::new(
+            x as f64,
+            y as f64,
+            (x + width) as f64,
+            (y + height) as f64,
+        ));
+        let node = Node {
+            role: Role::Button,
+            actions: enum_set!(Action::Focus | Action::Default),
+            bounds,
+            name: self.name.as_ref().map(|n| n.to_string().into_boxed_str()),
+            description: self
+                .description
+                .as_ref()
+                .map(|n| n.to_string().into_boxed_str()),
+            focusable: true,
+            default_action_verb: Some(DefaultActionVerb::Click),
+            ..Default::default()
+        };
+        A11yTree::node_with_child_tree(
+            A11yNode::new(node, self.id.clone()),
+            child_tree,
+        )
+    }
 }
 
 impl<'a, Message, Renderer> From<Button<'a, Message, Renderer>>
@@ -303,6 +356,7 @@ impl State {
 /// Processes the given [`Event`] and updates the [`State`] of a [`Button`]
 /// accordingly.
 pub fn update<'a, Message: Clone>(
+    id: &Id,
     event: Event,
     layout: Layout<'_>,
     cursor_position: Point,
@@ -347,6 +401,25 @@ pub fn update<'a, Message: Clone>(
             let state = state();
 
             state.is_pressed = false;
+        }
+
+        #[cfg(feature = "a11y")]
+        Event::A11y(
+            event_id,
+            iced_accessibility::accesskit::ActionRequest { action, .. },
+        ) => {
+            let state = state();
+            if let Some(Some(on_press)) = (id == &event_id
+                && matches!(
+                    action,
+                    iced_accessibility::accesskit::Action::Default
+                ))
+            .then(|| on_press.clone())
+            {
+                state.is_pressed = false;
+                shell.publish(on_press);
+            }
+            return event::Status::Captured;
         }
         _ => {}
     }

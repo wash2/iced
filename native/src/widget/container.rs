@@ -261,6 +261,13 @@ where
             renderer,
         )
     }
+
+    #[cfg(feature = "a11y")]
+    /// get the a11y nodes for the widget
+    fn a11y_nodes(&self, layout: Layout<'_>) -> iced_accessibility::A11yTree {
+        let c_layout = layout.children().next().unwrap();
+        self.content.as_widget().a11y_nodes(c_layout)
+    }
 }
 
 impl<'a, Message, Renderer> From<Container<'a, Message, Renderer>>

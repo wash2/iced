@@ -8,6 +8,7 @@ use crate::{Element, Layout, Length, Point, Rectangle, Size, Widget};
 
 use std::borrow::Cow;
 
+use iced_core::id::Id;
 pub use iced_style::text::{Appearance, StyleSheet};
 
 /// A paragraph of text.
@@ -31,6 +32,7 @@ where
     Renderer: text::Renderer,
     Renderer::Theme: StyleSheet,
 {
+    id: Id,
     content: Cow<'a, str>,
     size: Option<u16>,
     width: Length,
@@ -49,6 +51,7 @@ where
     /// Create a new fragment of [`Text`] with the given contents.
     pub fn new(content: impl Into<Cow<'a, str>>) -> Self {
         Text {
+            id: Id::unique(),
             content: content.into(),
             size: None,
             font: Default::default(),
@@ -168,6 +171,19 @@ where
             self.vertical_alignment,
         );
     }
+
+    #[cfg(feature = "a11y")]
+    fn a11y_nodes(&self, _layout: Layout<'_>) -> iced_accessibility::A11yTree {
+        use iced_accessibility::{accesskit, A11yNode, A11yTree};
+
+        let node = accesskit::Node {
+            role: accesskit::Role::StaticText,
+            name: Some(self.content.to_string().into_boxed_str()),
+            live: Some(accesskit::Live::Polite),
+            ..Default::default()
+        };
+        A11yTree::new(vec![A11yNode::new(node, self.id.clone())], Vec::new())
+    }
 }
 
 /// Draws text using the same logic as the [`Text`] widget.
@@ -236,6 +252,7 @@ where
 {
     fn clone(&self) -> Self {
         Self {
+            id: self.id.clone(),
             content: self.content.clone(),
             size: self.size,
             width: self.width,
