@@ -182,7 +182,8 @@ where
             live: Some(accesskit::Live::Polite),
             ..Default::default()
         };
-        A11yTree::new(vec![A11yNode::new(node, self.id.clone())], Vec::new())
+
+        A11yTree::leaf_node(A11yNode::new(node, self.id.clone()))
     }
 }
 

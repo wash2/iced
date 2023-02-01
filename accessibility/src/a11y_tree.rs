@@ -17,6 +17,15 @@ impl A11yTree {
         Self { root, children }
     }
 
+    /// Helper for creating a leaf node
+    /// This is a single node with no children
+    pub fn leaf_node(node: A11yNode) -> Self {
+        Self {
+            root: vec![node],
+            children: vec![],
+        }
+    }
+
     /// Helper for creating an A11y tree with a single root node and some children
     pub fn node_with_child_tree(mut root: A11yNode, child_tree: Self) -> Self {
         root.add_children(
