@@ -126,6 +126,18 @@ where
         self.style = style;
         self
     }
+
+    /// Sets the name of the [`Button`].
+    pub fn name(mut self, name: impl Into<Cow<'a, str>>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// Sets the description of the [`Button`].
+    pub fn description(mut self, description: impl Into<Cow<'a, str>>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
 }
 
 impl<'a, Message, Renderer> Widget<Message, Renderer>
